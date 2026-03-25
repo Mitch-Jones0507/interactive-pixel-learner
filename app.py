@@ -12,7 +12,7 @@ import plotly.express as px
 
 # --- Config --- #
 
-scipl1 = "scipl1.zip"
+scipl1 = "premade_galleries/scipl1.zip"
 scipl2 = []
 
 colour_map = {
