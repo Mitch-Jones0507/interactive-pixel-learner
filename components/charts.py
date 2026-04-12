@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
+import tensorflow as tf
 
 def search_chart(model):
 
@@ -103,3 +104,48 @@ def acc_loss_chart(type, model):
             height=200,
             config={"displayModeBar": False}
         )
+
+def confusion_matrix_chart(y_true, y_pred):
+
+    cm = tf.math.confusion_matrix(
+        labels=y_true,
+        predictions=y_pred,
+        num_classes=len(st.session_state.label_id)
+    ).numpy()
+
+    labels = list(st.session_state.label_id.keys())
+
+    colorscale = [
+        [0.0, "#2e2e33"],
+        [0.5, "#6b6b52"],
+        [1.0, "#fffc9e"]
+    ]
+
+    fig = px.imshow(
+        cm,
+        text_auto=True,
+        x=labels,
+        y=labels,
+        color_continuous_scale=colorscale
+    )
+
+    fig.update_layout(
+        paper_bgcolor="#2a2a2e",
+        plot_bgcolor="#2a2a2e",
+
+        font=dict(color="#ffffff", family="Inter"),
+
+        xaxis=dict(title="Predicted", showline=False),
+        yaxis=dict(title="True", showline=False),
+
+        margin=dict(l=10, r=10, t=0, b=10),
+    )
+
+    fig.update_xaxes(constrain="domain")
+    fig.update_yaxes(constrain="domain")
+
+    fig.update_coloraxes(showscale=False)
+
+    fig.update_coloraxes(showscale=False)
+
+    return fig
