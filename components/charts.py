@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 
-def search_chart():
+def search_chart(model):
 
     history = st.session_state.search_history
 
@@ -24,7 +24,7 @@ def search_chart():
             "trial": "trial",
             "value": "val accuracy"
         },
-        color_discrete_sequence=["#b0ff9e"]
+        color_discrete_sequence=["#9ecdff"] if model == "CHIPL" else ["#ff9eef"]
     )
     fig.update_layout(
         margin=dict(t=0, b=30, l=40, r=10),
@@ -36,7 +36,7 @@ def search_chart():
         config={"displayModeBar": False}
     )
 
-def acc_loss_chart(type):
+def acc_loss_chart(type, model):
 
     history = st.session_state.history_data
     df = pd.DataFrame(history)
@@ -69,6 +69,16 @@ def acc_loss_chart(type):
             "val_loss": "#d8ffc9",
             "accuracy": "#b0ff9e",
             "val_accuracy": "#d8ffc9"
+        } if model == "SCIPL" else {
+            "loss": "#9ecdff",
+            "val_loss": "#d1e7ff",
+            "accuracy": "#9ecdff",
+            "val_accuracy": "#d1e7ff"
+        } if model == "CHIPL" else {
+            "loss": "#ff9eef",
+            "val_loss": "#fcc5f3",
+            "accuracy": "#ff9eef",
+            "val_accuracy": "#fcc5f3"
         }
     )
 

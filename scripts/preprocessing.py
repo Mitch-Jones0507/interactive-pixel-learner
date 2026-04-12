@@ -20,13 +20,11 @@ def augment_images(zip_buffer, method, occlusion_type, zoom_type, addition, per_
 
     with zipfile.ZipFile(zip_buffer, "r") as zin, zipfile.ZipFile(new_buffer, "w") as zout:
 
-        # 🔑 Sort by original index
         files = sorted(
             [f for f in zin.namelist() if not f.endswith("/")],
             key=lambda x: parse_filename(x)[0]
         )
 
-        # --- Select files to augment ---
         if not per_class:
             num_to_augment = max(1, int(len(files) * (addition / 100)))
             files_to_augment = set(random.sample(files, num_to_augment))
@@ -41,10 +39,9 @@ def augment_images(zip_buffer, method, occlusion_type, zoom_type, addition, per_
                 num_to_augment = max(1, int(len(class_files) * (addition / 100)))
                 files_to_augment.update(random.sample(class_files, num_to_augment))
 
-        # --- Process files in order ---
         for file in files:
             image_bytes = zin.read(file)
-            zout.writestr(file, image_bytes)  # keep original EXACTLY
+            zout.writestr(file, image_bytes)
 
             if file not in files_to_augment:
                 continue
@@ -52,12 +49,10 @@ def augment_images(zip_buffer, method, occlusion_type, zoom_type, addition, per_
             image = Image.open(io.BytesIO(image_bytes))
             image_np = np.array(image).astype(np.float32)
 
-            # Extract base name
             class_name = file.split("/")[0]
             filename = file.split("/")[-1]
-            base = filename.split("__")[0]  # img_X
+            base = filename.split("__")[0]
 
-            # --- AUGMENTATIONS ---
             if method == "Occlude":
                 aug = image_np.copy()
                 h, w = aug.shape[:2]
@@ -84,12 +79,18 @@ def augment_images(zip_buffer, method, occlusion_type, zoom_type, addition, per_
 
                 elif occlusion_type == "Block":
                     num_blocks = max(1, int(1 + 5 * (strength / 100)))
+
                     for _ in range(num_blocks):
-                        occ_w = np.random.randint(5, w // 5)
-                        occ_h = np.random.randint(5, h // 5)
-                        x = np.random.randint(0, w - occ_w)
-                        y = np.random.randint(0, h - occ_h)
-                        aug[y:y+occ_h, x:x+occ_w] = 0
+                        min_size = max(1, int(0.05 * w))
+                        max_size = max(min_size + 1, int(0.2 * w))
+
+                        occ_w = np.random.randint(min_size, max_size)
+                        occ_h = np.random.randint(min_size, max_size)
+
+                        x = np.random.randint(0, max(1, w - occ_w))
+                        y = np.random.randint(0, max(1, h - occ_h))
+
+                        aug[y:y + occ_h, x:x + occ_w] = 0
 
                 aug = np.clip(aug, 0, 255).astype(np.uint8)
                 aug_pil = Image.fromarray(aug)
@@ -121,7 +122,6 @@ def augment_images(zip_buffer, method, occlusion_type, zoom_type, addition, per_
                 aug_pil = zoomed.crop((left, top, left + w, top + h))
                 aug_type = "zoomed"
 
-            # Save augmented image
             aug_bytes = io.BytesIO()
             aug_pil.save(aug_bytes, format="PNG")
 
@@ -150,14 +150,13 @@ def create_dataset_zip():
             image_bytes = io.BytesIO()
             image_pil.save(image_bytes, format="PNG")
 
-            # 🔑 Encode index + augmentation type
             filename = f"{class_name}/img_{i}__aug__{aug_type}.png"
             zf.writestr(filename, image_bytes.getvalue())
 
     buffer.seek(0)
     return buffer
 
-def load_dataset_zip(uploaded_file):
+def load_dataset_zip(uploaded_file,type="capture"):
     with zipfile.ZipFile(uploaded_file) as z:
 
         files = [f for f in z.namelist() if f.endswith((".png", ".jpg"))]
@@ -165,26 +164,52 @@ def load_dataset_zip(uploaded_file):
         files = sorted(files, key=lambda x: parse_filename(x)[0])
 
         for file in files:
+
             class_name = file.split("/")[0]
 
-            if class_name not in st.session_state.label_id:
-                new_id = len(st.session_state.label_id)
-                st.session_state.label_id[class_name] = new_id
+            if type == "capture":
 
-            class_id = st.session_state.label_id[class_name]
+                if class_name not in st.session_state.label_id:
+                    new_id = len(st.session_state.label_id)
+                    st.session_state.label_id[class_name] = new_id
 
-            image_bytes = z.read(file)
-            image = Image.open(io.BytesIO(image_bytes)).convert("L")
-            image_array = np.array(image)
+                class_id = st.session_state.label_id[class_name]
 
-            if image_array.max() > 1:
-                image_array = image_array / 255.0
+                image_bytes = z.read(file)
+                image = Image.open(io.BytesIO(image_bytes)).convert("L")
+                image_array = np.array(image)
 
-            _, aug_type = parse_filename(file)
+                if image_array.max() > 1:
+                    image_array = image_array / 255.0
 
-            st.session_state.samples.append(image_array)
-            st.session_state.labels.append(class_id)
-            st.session_state.augmentation_type.append(aug_type)
+                _, aug_type = parse_filename(file)
+
+                st.session_state.samples.append(image_array)
+                st.session_state.labels.append(class_id)
+                st.session_state.augmentation_type.append(aug_type)
+
+            else:
+
+                if class_name not in st.session_state.prediction_label_id:
+                    new_id = len(st.session_state.prediction_label_id)
+                    st.session_state.prediction_label_id[class_name] = new_id
+
+                class_id = st.session_state.prediction_label_id[class_name]
+
+                image_bytes = z.read(file)
+                image = Image.open(io.BytesIO(image_bytes)).convert("L")
+                image_array = np.array(image)
+
+                if image_array.max() > 1:
+                    image_array = image_array / 255.0
+
+                _, aug_type = parse_filename(file)
+
+                st.session_state.prediction_samples.append(image_array)
+                st.session_state.prediction_labels.append(class_id)
+                st.session_state.prediction_augmentation_type.append(aug_type)
+
+
 
 def parse_filename(file):
     filename = file.split("/")[-1]

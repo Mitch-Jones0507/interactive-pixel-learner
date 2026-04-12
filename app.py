@@ -43,6 +43,12 @@ DEFAULTS = {
     "model": None,
     "model_name": "SCIPL",
     "model_type": "Blank",
+    "split_data": {
+        "X_train": [],
+        "y_train": [],
+        "X_test": [],
+        "y_test": [],
+    },
     "model_locked": False,
     "model_searched": False,
     "model_state_loaded": False,
@@ -62,7 +68,15 @@ DEFAULTS = {
     },
     "loss_chart": None,
     "acc_chart": None,
-    "search_chart": None
+    "search_chart": None,
+    "prediction_samples": [],
+    "prediction_labels": [],
+    "prediction_label_id": {},
+    "prediction_augmentation_type": [],
+    "prediction_gallery_name": "",
+    "prediction_gallery_loaded": False,
+    "prediction_mode": "Live",
+    "gallery_predicted": False,
 }
 
 for key, default_value in DEFAULTS.items():
@@ -83,7 +97,7 @@ divider(sidebar=True)
 
 # -- Page Box -- #
 
-pages = ["_IP_:primary[L]","Capture","Train","Predict","About"]
+pages = ["_IP_:primary[L]","Capture","Train","Predict","Settings"]
 
 with st.container(border=False,width=500,height=75,horizontal_alignment="left",vertical_alignment="center"):
     page_columns = st.columns(5,gap="small")
@@ -97,8 +111,12 @@ with st.container(border=False,width=500,height=75,horizontal_alignment="left",v
 divider()
 
 # -- Home Page -- #
-if st.session_state.current_page == "Home":
-    st.header("Home")
+if st.session_state.current_page == "_IP_:primary[L]":
+    st.title("An Involved Way to Understand Computer Vision",text_alignment="center")
+    st.title("_IP_:primary[L] Models")
+    st.header("Simple Convolutional _IP_:primary[L] - SCIPL")
+    st.header("Convolutional Hyperparametric _IP_:primary[L] - CHIPL")
+    st.header("Transformer _IP_:primary[L] - TRIPL")
 
 # -- Capture Page -- #
 if st.session_state.current_page == "Capture":
@@ -108,6 +126,7 @@ if st.session_state.current_page == "Capture":
 if st.session_state.current_page == "Train":
     train_page()
 
+# -- Predict Page -- #
 if st.session_state.current_page == "Predict":
     predict_page()
 

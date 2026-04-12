@@ -1,16 +1,59 @@
 import tensorflow as tf
 
-def build_chipl(num_classes):
-    return tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
-        tf.keras.layers.MaxPooling2D((2, 2)),
+def build_chipl(
+    num_classes,
+    input_shape=(28, 28, 1),
+    conv_layers=2,
+    base_filters=8,
+    dense_units=32,
+    kernel_size=3,
+    dropout=0.3,
+    batch_norm="Yes",
+    weight_decay=0.0001
+):
 
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-        tf.keras.layers.MaxPooling2D((2, 2)),
+    l2 = tf.keras.regularizers.l2(weight_decay)
 
-        tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+    model = tf.keras.Sequential(name='chipl')
 
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dense(num_classes, activation='softmax')
-    ],name='chipl')
+    for i in range(conv_layers):
+        filters = base_filters * (2 ** i)
+
+        if i == 0:
+            model.add(tf.keras.layers.Conv2D(
+                filters,
+                (kernel_size, kernel_size),
+                activation=None,
+                padding='same',
+                kernel_regularizer=l2,
+                input_shape=input_shape
+            ))
+        else:
+            model.add(tf.keras.layers.Conv2D(
+                filters,
+                (kernel_size, kernel_size),
+                activation=None,
+                padding='same',
+                kernel_regularizer=l2
+            ))
+
+        if batch_norm == "Yes":
+            model.add(tf.keras.layers.BatchNormalization())
+
+        model.add(tf.keras.layers.ReLU())
+        model.add(tf.keras.layers.MaxPooling2D((2, 2)))
+
+    model.add(tf.keras.layers.Flatten())
+
+    model.add(tf.keras.layers.Dense(
+        dense_units,
+        activation='relu',
+        kernel_regularizer=l2
+    ))
+
+    if dropout > 0:
+        model.add(tf.keras.layers.Dropout(dropout))
+
+    model.add(tf.keras.layers.Dense(num_classes, activation='softmax'))
+
+    return model

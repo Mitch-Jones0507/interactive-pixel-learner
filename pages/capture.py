@@ -10,8 +10,8 @@ from collections import Counter
 import pandas as pd
 import plotly.express as px
 
-scipl1 = "premade_galleries/scipl1.zip"
-scipl2 = []
+scipl_chipl = "premade_galleries/scipl-chipl.zip"
+scipl_chipl_2 = "premade_galleries/scipl-chipl-2.zip"
 
 colour_map = {
     "non-augmented": "#fffc9e",
@@ -246,11 +246,23 @@ def page ():
 
         with st.container(height=240):
             if st.session_state.gallery_loaded == True:
-                if st.session_state.gallery_name in ["SCIPL-1", "SCIPL-2", "SCIPL-3"]:
+                if st.session_state.gallery_name in ["SCIPL-CHIPL-1","SCIPL-CHIPL-2"]:
+                    scipl, chipl, suffix = st.session_state.gallery_name.split("-", 2)
                     st.markdown(
-                        f'**Loaded Gallery**: <span style="color: #b0ff9e;">{st.session_state.gallery_name}</span>',
+                        f"""
+                        <div style="
+                            font-family: Inter, sans-serif;
+                            font-size: 14px;
+                            font-weight: 400;
+                            color: #ffffff;
+                            margin-bottom: 0.3rem;
+                        ">
+                            <b>Loaded Gallery</b>:
+                            <span style="color:#b0ff9e;">{scipl}</span>-<span style="color:#9ecdff;">{chipl}</span>-{suffix}
+                        </div>
+                        """,
                         unsafe_allow_html=True
-                        )
+                    )
                 else:
                     st.markdown(f"**Loaded Gallery**: {st.session_state.gallery_name}", unsafe_allow_html=True)
 
@@ -265,7 +277,7 @@ def page ():
                         (name for name, cid in st.session_state.label_id.items() if cid == class_id),
                         "Unknown"
                     )
-                    with st.expander(f":primary[Class {class_id}] ({label_name}): {len(samples)} samples"):
+                    with st.popover(f":primary[Class {class_id}] ({label_name}): {len(samples)} samples",use_container_width=True):
                         cols = st.columns(10)
                         for i, image in enumerate(samples):
                             with cols[i % 10]:
@@ -287,7 +299,7 @@ def page ():
 
                 # Premade Gallery
                 premade_gallery = st.selectbox(label="Choose a :primary[premade] gallery:",
-                                               options=["SCIPL-1", "SCIPL-2", "CHIPL", "TRIPL"],
+                                               options=["SCIPL-CHIPL-1","SCIPL-CHIPL-2"],
                                                help="Premade gallery is ")
 
             with download_column:
@@ -323,23 +335,37 @@ def page ():
                         mime="application/zip",
                         use_container_width=True, )
 
-                    delete_gallery = st.button("Delete Gallery", use_container_width=True)
-                    if delete_gallery:
-                        st.session_state.samples = []
-                        st.session_state.labels = []
-                        st.session_state.label_id = {}
-                        st.session_state.augmentation_type = []
-                        st.session_state.gallery_loaded = False
-                        st.rerun()
+                    if st.button("Delete Gallery", use_container_width=True):
+
+                        @st.dialog(f"Are you sure you want to delete {st.session_state.gallery_name}?")
+                        def delete_gallery():
+                            st.write("All samples will be removed and will not be recoverable.")
+                            col1, col2 = st.columns([1,1])
+                            with col1:
+                                if st.button("Yes",use_container_width=True):
+                                    st.session_state.samples = []
+                                    st.session_state.labels = []
+                                    st.session_state.label_id = {}
+                                    st.session_state.augmentation_type = []
+                                    st.session_state.gallery_loaded = False
+                                    st.rerun()
+                            with col2:
+                                if st.button("Cancel",use_container_width=True):
+                                    st.rerun()
+
+                        delete_gallery()
 
                 else:
                     load_premade = st.button(label="Load Premade Gallery", use_container_width=True)
                     if load_premade and not st.session_state.gallery_loaded:
-                        if premade_gallery == "SCIPL-1":
-                            load_dataset_zip(scipl1)
-                            st.session_state.gallery_loaded = True
-                            st.session_state.gallery_name = "SCIPL-1"
-                            st.rerun()
+                        if premade_gallery == "SCIPL-CHIPL-1":
+                            load_dataset_zip(scipl_chipl)
+                            st.session_state.gallery_name = "SCIPL-CHIPL-1"
+                        elif premade_gallery == "SCIPL-CHIPL-2":
+                            load_dataset_zip(scipl_chipl_2)
+                            st.session_state.gallery_name = "SCIPL-CHIPL-2"
+                        st.session_state.gallery_loaded = True
+                        st.rerun()
 
     with distribution_column:
         st.header("Distribution")
