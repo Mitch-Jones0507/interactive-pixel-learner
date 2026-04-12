@@ -1,12 +1,13 @@
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from components.divider import divider
-from PIL import Image
+from components.charts import confusion_matrix_chart
+from scripts.modelling import predict_model
 import io
 from scripts.preprocessing import process_image, load_dataset_zip
 import numpy as np
 from collections import defaultdict
-import tensorflow as tf
+
 
 prediction_gallery = "premade_galleries/prediction_gallery.zip"
 
@@ -14,8 +15,8 @@ def page ():
 
     st.title("Predict", text_alignment="center")
     st.markdown(
-        "Choose a model and train your _IP_:primary[L]. Draw and label your pictures "
-        "and find them preprocessed in the data gallery.",
+        "Create the data to test your _IP_:primary[L]. Draw and label your pictures  \n"
+        "and hit predict when you want your model to guess.",
         text_alignment="center"
     )
 
@@ -32,35 +33,91 @@ def page ():
     canvas_column, prediction_column, evaluation_column = st.columns([1, 1, 1])
 
     with prediction_column:
-        st.header("Prediction Gallery")
+        st.header(f"Prediction Gallery ({len(st.session_state.prediction_samples)})")
 
-        with st.container(height=435):
+        with st.container(height=500):
 
-            if st.session_state.prediction_gallery_loaded == True:
-                st.markdown(
-                    f'**Loaded Gallery**: {st.session_state.prediction_gallery_name}</span>',
-                    unsafe_allow_html=True
-                    )
+            if st.session_state.model_locked == True:
 
-            if st.session_state.prediction_gallery_loaded == True:
-                grouped = defaultdict(list)
-                for image, class_id in zip(st.session_state.prediction_samples, st.session_state.prediction_labels):
-                    grouped[class_id].append(image)
-                for idx, (class_id, samples) in enumerate(grouped.items()):
-                    label_name = next(
-                        (name for name, cid in st.session_state.prediction_label_id.items() if cid == class_id),
-                        "Unknown"
-                    )
-                    with st.popover(f":primary[Class {class_id}] ({label_name}): {len(samples)} samples",
-                                    use_container_width=True):
-                        cols = st.columns(10)
-                        for i, image in enumerate(samples):
-                            with cols[i % 10]:
-                                st.image(image)
+                if st.session_state.prediction_gallery_loaded == True:
+                    st.markdown(
+                        f'**Loaded Gallery**: {st.session_state.prediction_gallery_name}</span>',
+                        unsafe_allow_html=True
+                        )
+                else:
+                    st.markdown("**Gallery**: Live Gallery")
+
+                with st.container(height=220,border=True):
+
+                    if len(st.session_state.prediction_samples) > 0:
+
+                        grouped = defaultdict(list)
+                        for image, class_id in zip(
+                                st.session_state.prediction_samples,
+                                st.session_state.prediction_labels
+                        ):
+                            grouped[class_id].append(image)
+                        id_to_label = {v: k for k, v in st.session_state.label_id.items()}
+                        for class_name, class_id in st.session_state.label_id.items():
+                            samples = grouped.get(class_id, [])
+                            if len(samples) == 0:
+                                continue
+                            with st.popover(
+                                    f":primary[Class {class_id}] ({class_name}): {len(samples)} samples",
+                                    use_container_width=True
+                            ):
+                                cols = st.columns(10)
+                                for i, image in enumerate(samples):
+                                    with cols[i % 10]:
+                                        st.image(image)
+                    else:
+                        st.markdown("No samples predicted yet.")
+
+                with st.container(height=200,border=True):
+
+                    if len(st.session_state.live_predictions) > 0:
+
+                        id_to_label = {v: k for k, v in st.session_state.label_id.items()}
+
+                        for idx in reversed(range(len(st.session_state.live_predictions))):
+                            pred = st.session_state.live_predictions[idx]
+                            image = st.session_state.prediction_samples[idx]
+
+                            pred_id = int(pred[0])
+                            label_name = id_to_label.get(pred_id, "Unknown")
+
+                            col1, col2 = st.columns([1,4])
+
+                            with col1:
+                                st.image(image, width=70)
+
+                            with col2:
+                                st.markdown(
+                                    f"""
+                                    <div style="
+                                        padding:6px;
+                                        border-radius:12px;
+                                        background-color:#2e2e33;
+                                        border: 1px solid #3a3a40;
+                                        margin-bottom:12px;
+                                    ">
+                                        <div style="font-size:12px; color:#bbbbbb;">
+                                            {st.session_state.model_name} thinks ...
+                                        </div>
+                                        <div style="font-size:18px; font-weight:bold; color:white;">
+                                            {label_name}
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                    else:
+                        st.markdown("No samples predicted yet.")
+
             else:
                 st.markdown("No model loaded.")
 
-        with st.container(height=200):
+        with st.container(height=100):
 
             mode_options = ["Live", "Batch"]
             current_index = mode_options.index(st.session_state.prediction_mode)
@@ -94,18 +151,37 @@ def page ():
                 label_column, prediction_button_column = st.columns(2)
 
                 with label_column:
-                    label = st.text_input(label="Label your sample", width=300, autocomplete='off')
+                    label = st.selectbox(label="Label your sample", options=st.session_state.label_id.keys())
 
                 with prediction_button_column:
 
-                    prediction = st.button("Predict",use_container_width=True)
+                    prediction = st.button("Predict",
+                                           use_container_width=True,
+                                           disabled=st.session_state.model_locked==False)
 
                     file_name = "drawing.png"
                     buffer = io.BytesIO()
 
-                    if canvas_data.image_data is not None:
-                        image = Image.fromarray(canvas_data.image_data.astype("uint8"), "RGBA")
-                        image.save(buffer, format="PNG")
+                    if prediction:
+
+                        image = process_image(canvas_data.image_data)
+                        if label not in st.session_state.label_id:
+                            st.error(f"Unknown label: {label}")
+                            st.stop()
+
+                        class_id = st.session_state.label_id[label]
+                        st.session_state.prediction_samples.append(image)
+                        st.session_state.prediction_labels.append(class_id)
+
+                        if canvas_data.image_data is not None:
+                            live_y_pred, live_pred_probs = predict_model(
+                                st.session_state.model,
+                                canvas_data.image_data,
+                                mode="live"
+                            )
+
+                        st.session_state.live_predictions.append(live_y_pred)
+                        st.rerun()
 
                     save = st.download_button("Download",
                                               data=buffer,
@@ -119,6 +195,7 @@ def page ():
                 with col2:
 
                     if st.session_state.prediction_gallery_loaded == False:
+
                         load_prediction = st.button("Load _IP_:primary[L] Prediction Gallery")
                     else:
 
@@ -128,17 +205,13 @@ def page ():
 
                         if prediction:
 
-                            X = np.array(st.session_state.prediction_samples)
-                            y_true = np.array(st.session_state.prediction_labels)
+                            batch_y_pred, batch_pred_probs = predict_model(
+                                st.session_state.model,
+                                st.session_state.prediction_samples,
+                                mode="batch"
+                            )
 
-                            if len(X.shape) == 3:
-                                X = X[..., np.newaxis]
-
-                            model = st.session_state.model
-                            pred_probs = model.predict(X)
-                            y_pred = np.argmax(pred_probs, axis=1)
-                            accuracy = np.mean(y_pred == y_true)
-                            st.session_state.gallery_predicted = True
+                            accuracy = np.mean(batch_y_pred == st.session_state.prediction_labels)
 
                         if st.button("Delete Prediction Gallery", use_container_width=True):
 
@@ -162,20 +235,45 @@ def page ():
                             delete_gallery()
 
                     if not st.session_state.prediction_gallery_loaded and load_prediction:
+
+                        st.session_state.prediction_samples = []
+                        st.session_state.prediction_labels = []
+                        st.session_state.prediction_label_id = {}
+                        st.session_state.prediction_augmentation_type = []
+                        st.session_state.live_predictions = []
+
                         load_dataset_zip(prediction_gallery,type="prediction")
                         st.session_state.prediction_gallery_name = "IPL"
                         st.session_state.prediction_gallery_loaded = True
                         st.rerun()
 
+        if st.session_state.model_locked == False:
+            st.warning(
+                f"Train {st.session_state.model_name} to be able to make predictions.")
 
     with evaluation_column:
         st.header("Evaluation")
 
         with st.container(border=True, height=600, vertical_alignment="distribute"):
 
-            if st.session_state.gallery_predicted:
+            if len(st.session_state.prediction_samples) > 0:
 
-                cm = tf.math.confusion_matrix(y_true, y_pred)
-                st.subheader("Confusion Matrix")
-                st.dataframe(cm.numpy())
-                st.write(accuracy)
+                y_true = np.array(st.session_state.prediction_labels, dtype=np.int32)
+                y_pred = np.array([int(p[0]) for p in st.session_state.live_predictions], dtype=np.int32)
+
+                cm = confusion_matrix_chart(y_true, y_pred)
+
+                st.plotly_chart(cm,
+                                use_container_width=True,
+                                config={
+                                    "scrollZoom": False,
+                                    "displayModeBar": True,
+                                    "modeBarButtonsToRemove": [
+                                        "zoom2d", "pan2d", "select2d", "lasso2d",
+                                        "zoomIn2d", "zoomOut2d", "autoScale2d", "resetScale2d",
+                                        "hoverCompareCartesian", "hoverClosestCartesian", "toImage",
+                                        "toggleSpikelines",
+                                        "toggleFullscreen"
+                                    ],
+                                    "displaylogo": False
+                                })

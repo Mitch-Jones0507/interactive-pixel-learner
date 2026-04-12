@@ -50,8 +50,8 @@ def page():
 
     st.title("Train", text_alignment="center")
     st.markdown(
-        "Choose a model and train your _IP_:primary[L]. Draw and label your pictures "
-        "and find them preprocessed in the data gallery.",
+        "Choose a model to train your _IP_:primary[L]. View and control your tuning  \n"
+        "parameters and click train when you are ready.",
         text_alignment="center"
     )
     divider()

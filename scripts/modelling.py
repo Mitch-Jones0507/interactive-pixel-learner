@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import tensorflow as tf
+from scripts.preprocessing import process_image
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 import optuna
@@ -177,3 +178,24 @@ def hyperparameter_search(X_train, y_train, X_test, y_test, num_classes,
 
     study.optimize(objective, n_trials=trials, callbacks=callbacks)
     return study.best_params
+
+
+def predict_model(model, data, mode="batch"):
+
+    if mode == "batch":
+        X = np.array(data)
+
+        if len(X.shape) == 3:
+            X = X[..., np.newaxis]
+
+    elif mode == "live":
+        image = process_image(data)
+        X = np.expand_dims(image, axis=0)
+
+    else:
+        raise ValueError("mode must be 'batch' or 'live'")
+
+    pred_probs = model.predict(X)
+    y_pred = np.argmax(pred_probs, axis=1)
+
+    return y_pred, pred_probs

@@ -77,6 +77,7 @@ DEFAULTS = {
     "prediction_gallery_loaded": False,
     "prediction_mode": "Live",
     "gallery_predicted": False,
+    "live_predictions": []
 }
 
 for key, default_value in DEFAULTS.items():
@@ -130,6 +131,7 @@ if st.session_state.current_page == "Train":
 if st.session_state.current_page == "Predict":
     predict_page()
 
-
+if st.session_state.current_page == "Settings":
+    st.markdown("Settings coming soon.")
 
 
