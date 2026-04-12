@@ -1,0 +1,168 @@
+<style>
+    * { margin: 0; padding: 0; }
+    html, body { overflow: hidden; background: #0e0e11; }
+    canvas { display: block; }
+</style>
+
+<script type="module">
+import * as THREE from 'https://cdn.skypack.dev/three@0.128.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+
+// =====================
+// SCENE
+// =====================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2e2e33);
+
+// CAMERA
+const camera = new THREE.PerspectiveCamera(
+    45,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+);
+camera.position.set(10, 10, 10);
+
+// RENDERER
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// CONTROLS
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// =====================
+// GRID SETTINGS
+// =====================
+const gridSize = 28;
+const spacing = 0.275;
+
+const cubeSize = 0.25;
+
+// =====================
+// GROUPS
+// =====================
+const inputGroup = new THREE.Group();
+const kernelGroup = new THREE.Group();
+
+scene.add(inputGroup);
+scene.add(kernelGroup);
+
+// =====================
+// LIGHTING
+// =====================
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+const light = new THREE.PointLight(0xffffff, 0.3);
+light.position.set(10, 10, 10);
+scene.add(light);
+
+// =====================
+// SAMPLE DATA
+// =====================
+const sample = SAMPLE_PLACEHOLDER;
+
+let imageData = [];
+for (let y = 0; y < gridSize; y++) {
+    imageData.push(sample.slice(y * gridSize, (y + 1) * gridSize));
+}
+
+// =====================
+// INPUT GRID
+// =====================
+const inputGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+
+for (let x = 0; x < gridSize; x++) {
+    for (let z = 0; z < gridSize; z++) {
+
+        const value = imageData[z][x];
+        const color = new THREE.Color(value, value, value);
+
+        const cube = new THREE.Mesh(
+            inputGeometry,
+            new THREE.MeshStandardMaterial({
+                color,
+                roughness: 1,
+                metalness: 0
+            })
+        );
+
+        cube.position.x = (x - gridSize / 2) * spacing;
+        cube.position.z = (z - gridSize / 2) * spacing;
+        cube.position.y = 0;
+
+        inputGroup.add(cube);
+    }
+}
+
+// =====================
+// KERNEL (3x3 SCANNER)
+// =====================
+const kernelSize = 3;
+
+const kernelGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+const kernelMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb0ff9e,
+    roughness: 1,
+    metalness: 0
+});
+
+for (let i = 0; i < kernelSize; i++) {
+    for (let j = 0; j < kernelSize; j++) {
+
+        const cube = new THREE.Mesh(kernelGeometry, kernelMaterial);
+
+        cube.position.x = (i - (kernelSize - 1) / 2) * spacing;
+        cube.position.z = (j - (kernelSize - 1) / 2) * spacing;
+        cube.position.y = cubeSize / 2 + 0.2;
+
+        kernelGroup.add(cube);
+    }
+}
+
+// =====================
+// SCAN STATE
+// =====================
+let scanX = 0;
+let scanZ = 0;
+const step = 0.1;
+
+// =====================
+// ANIMATION
+// =====================
+function animate() {
+    requestAnimationFrame(animate);
+
+    kernelGroup.position.x =
+        (scanX - gridSize / 2 + (kernelSize - 1) / 2) * spacing;
+
+    kernelGroup.position.z =
+        (scanZ - gridSize / 2 + (kernelSize - 1) / 2) * spacing;
+
+    scanX += step;
+
+    if (scanX > gridSize - kernelSize) {
+        scanX = 0;
+        scanZ += 1;
+
+        if (scanZ > gridSize - kernelSize) {
+            scanZ = 0;
+        }
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+animate();
+
+// =====================
+// RESIZE
+// =====================
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
